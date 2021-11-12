@@ -1,51 +1,111 @@
-import React, { useState } from 'react';
-import { GoogleApiWrapper , Map, Marker} from 'google-maps-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { GoogleApiWrapper, Map, Marker } from 'google-maps-react';
 
-export const MapContainer = (props) =>{
-    // const[map, setMap] = useState(null)
-    const { google } = props;
+import { setRestaurants, setRestaurant } from '../../redux/modules/restaurants';
 
-    // function searchByQuery(query){
-    //     const service = new google.maps.places.PlacesService(map);
-    //     const request ={
-    //         location:map.center,
-    //         radius:'200',
-    //         type: ['restaurant'],
-    //         query,
-    //     };
+export const MapContainer = (props) => {
+  const dispatch = useDispatch();
+  const [map, setMap] = useState(null);
+  const { restaurants } = useSelector((state) => state.restaurants);
+  const { google, query, placeId } = props;
 
-    //     service.textSearch(request,(results, status) =>{
-    //         if (status === google.maps.places.PlacesServiceStatus.OK){
-    //             console.log(results);
-    //         }
-    //     });
-    // }
+  const searchByQuery = useCallback(
+    (map, query) => {
+      const service = new google.maps.places.PlacesService(map);
+      dispatch(setRestaurants([]));
 
-    // function searchNearby(map, center) {
-    //     const service = new google.maps.places.PlacesService(map);
-    //     const request ={
-    //         location:map.center,
-    //         radius:'20000',
-    //         type: ['restaurant'],
-    //     };
+      const request = {
+        location: map.center,
+        radius: '200',
+        type: ['restaurant'],
+        query,
+      };
 
-    //     service.nearbySearch(request,(results, status) =>{
-    //         if (status === google.maps.places.PlacesServiceStatus.OK){
-    //             console.log(results);
-    //         }
-    //     });
-    // }
+      service.textSearch(request, (results, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+          dispatch(setRestaurants(results));
+        }
+      });
+    },
+    [dispatch, google]
+  );
 
-    // function onMapReady(_, map){
-    //     setMap(map)
-    //     searchNearby(map,map.center)
-    // }
-    // onReady={onMapReady} onRecenter={onMapReady}
+  const getDetails = useCallback(
+    (placeId) => {
+      const service = new google.maps.places.PlacesService(map);
+      dispatch(setRestaurant(null));
 
-    return (<Map google={google} centerAroundCurrentLocation />)
+      const request = {
+        placeId,
+        fields: ['name', 'opening_hours', 'formatted_address', 'formatted_phone_number'],
+      };
+
+      service.getDetails(request, (place, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK) {
+          dispatch(setRestaurant(place));
+        }
+      });
+    },
+    [google, map, dispatch]
+  );
+
+  useEffect(() => {
+    if (query) {
+      searchByQuery(map, query);
+    }
+  }, [searchByQuery, query, map]);
+
+  useEffect(() => {
+    if (placeId) {
+      getDetails(placeId);
+    }
+  }, [placeId, getDetails]);
+
+  const searchNearby = (map, center) => {
+    const service = new google.maps.places.PlacesService(map);
+
+    const request = {
+      location: center,
+      radius: '20000',
+      type: ['restaurant'],
+    };
+
+    service.nearbySearch(request, (results, status) => {
+      if (status === google.maps.places.PlacesServiceStatus.OK) {
+        dispatch(setRestaurants(results));
+      }
+    });
+  };
+
+  function onMapReady(_, map) {
+    setMap(map);
+    searchNearby(map, map.center);
+  }
+
+  return (
+    <Map
+      google={google}
+      centerAroundCurrentLocation
+      onReady={onMapReady}
+      onRecenter={onMapReady}
+      zoom={15}
+      {...props}>
+      {restaurants.map((restaurant) => (
+        <Marker
+          key={restaurant.place_id}
+          name={restaurant.name}
+          position={{
+            lat: restaurant.geometry.location.lat(),
+            lng: restaurant.geometry.location.lng(),
+          }}
+        />
+      ))}
+    </Map>
+  );
 };
 
 export default GoogleApiWrapper({
-    apiKey: process.env.REACT_APP_GOOGLE_API_KEY,
-    language:'pt-BR',
+  apiKey: process.env.REACT_APP_GOOGLE_API_KEY,
+  language: 'pt-BR',
 })(MapContainer);
