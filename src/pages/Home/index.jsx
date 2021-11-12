@@ -71,6 +71,7 @@ const Home = () => {
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {
+      console.log('Quero pesquisar')
       setQuery(value);
     }
   };
